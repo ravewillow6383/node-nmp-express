@@ -32,6 +32,11 @@ Actual time needed to complete: 12 mintues
 
 Testing github
 
+
+For LAB 7:
+ALex and I spent about 30-40 minutes on feature 1
+
+we spent about 3 hours on features 2 and 3. This was about what we had expected.
 # Project Name
 
 **Author**: Raven Robertson and Sara Haynes
