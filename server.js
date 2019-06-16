@@ -1,6 +1,6 @@
 'use strict';
 
-// Load Environment Variables from the .env file
+// Load Environment Variable from the .env file
 require('dotenv').config();
 
 // Application Dependencies
@@ -13,64 +13,80 @@ const PORT = process.env.PORT;
 const app = express();
 app.use(cors());
 
-// API Routes
-app.get('/location', handleLocationRequest);
-app.get('/weather', handleWeatherRequest);
+// Get all the things
+app.get('/location', handleLocation);
+app.get('/weather', handleWeather);
+app.get('/events', handleEvents);
 
-app.listen(PORT, () => console.log(`App is listening on ${PORT}`) );
-
-
-function handleLocationRequest(request, response){
-  const searchData = request.query.data;
-  const URL = `https://maps.googleapis.com/maps/api/geocode/json?address=${searchData}&key=${process.env.GEO_DATA}`;
-
-  return superagent.get(URL)
-    .then(res => {
-      const location = new Location(request.query.data, res.body);
-      response.send(location);
-    })
-    .catch(error=>{
-      handleError(error, response);
-    })
+// Route Handlers
+function handleLocation(request, response){
+  getLocation(request.query.data)
+    .then(location => response.send(location))
+    .catch(error => handleError(error, response));
 }
 
-function Location(query, rawData) {
-  console.log(query, rawData);
+function handleWeather(request, response){
+  getWeather(request.query)
+    .then(weather => response.send(weather))
+    .catch(error => handleError(error, response))
+}
+
+function handleEvents(request, response){
+  getEvents(request.query)
+    .then(data => response.send(data))
+    .catch(error => handleError(error));
+}
+
+function getLocation(query){
+  const URL = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEO_DATA}`;
+  return superagent.get(URL)
+    .then(response => {
+      let location = new Location(query, response.body.results[0]);
+      return location;
+    })
+    .catch(error => console.error(error));
+}
+
+function getWeather(query){
+  const URL = `https://api.darksky.net/forecast/${process.env.DARK_SKY}/${query.data.latitude},${query.data.longitude}`;
+  return superagent.get(URL)
+    .then(response => response.body.daily.data.map(day => new Weather(day)))
+    .catch(error => console.error(error));
+}
+
+function getEvents(query){
+  const URL = `https://www.eventbriteapi.com/v3/events/search?location.longitude=${query.data.longitude}&location.latitude=${query.data.latitude}&expand=venue`;
+  return superagent.get(URL)
+    .set('Authorization', `Bearer ${process.env.EVENTBRITE_API_KEY}`)
+    .then(data => data.body.events.map(event => new Event(event)))
+    .catch(error => console.error(error));
+}
+
+// Constructor Functions
+function Location(query, rawData){
   this.search_query = query;
-  this.formatted_query = rawData.results[0].formatted_address;
-  this.latitude = rawData.results[0].geometry.location.lat;
-  this.longitude = rawData.results[0].geometry.location.lng;
+  this.formatted_query = rawData.formatted_address;
+  this.latitude = rawData.geometry.location.lat;
+  this.longitude = rawData.geometry.location.lng;
 }
 
-function handleWeatherRequest(request, response) {
-  const searchData = request.query;
-  console.log('searchData', searchData);
-  const URL =`https://api.darksky.net/forecast/${process.env.DARK_SKY}/${searchData.lat}`;
-  console.log(URL)
-  return superagent.get(URL)
-    .then(res => {
-      let daySummaries = searchData.daily.data.map(data => new Weather(data));
-      response.send(daySummaries);
-    })
-    .catch(error=>{
-      handleError(error, response);
-    })
-  // try {
-  //   const rawData = require('.data/geo.json');
-
-  //   response.send(daySummaries);
-
-  // } catch (error) {
-  //   handleError(error, response);
-  // }
+function Weather(darkSkyData){
+  this.forecast = darkSkyData.summary;
+  this.time = new Date(darkSkyData.time * 1000).toDateString();
 }
 
-function Weather(dayData) {
-  this.forecast = dayData.summary;
-  this.time = new Date(dayData.time * 1000).toString().slice(0,15);
+function Event(event){
+  this.link = event.url,
+  this.name = event.name.txt,
+  this.event_date = event.start.local,
+  this.summary = event.summary;
 }
 
+// Error handling
 function handleError(error, response) {
   console.error(error);
-  response.status(500).send('I\'m sorry! we have run into a problem. Please try again later.');
+  response.status(500).send('Sorry, something went wrong')
 }
+
+// Make sure the server is listening for requests
+app.listen(PORT, () => console.log(`App is listening on ${PORT}`));
